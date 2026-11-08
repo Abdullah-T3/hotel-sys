@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+# agent secrets + vendor binaries (not ours to redistribute)
+agent/agent.json
+agent/vendor/*.dll
+agent/vendor/*.DLL
+
+# demo
+.demo-agent-token
+web/node_modules/

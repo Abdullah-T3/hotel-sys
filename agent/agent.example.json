@@ -1,0 +1,8 @@
+{
+  "server_url": "ws://GATEWAY-HOST:8080/agent/ws",
+  "encoder_id": "front-desk-1",
+  "token": "PASTE-THE-TOKEN-FROM-POST-/v1/encoders",
+  "name": "Front Desk 1",
+  "port": 1,
+  "dll_dir": "vendor"
+}

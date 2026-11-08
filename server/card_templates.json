@@ -1,0 +1,285 @@
+{
+  "_comment": [
+    "Card operations, expressed as proRFL.dll calls. Each arg is [kind, value]:",
+    "  ['i', int-or-placeholder]  input int,  ['s', str-or-placeholder]  input string,",
+    "  ['o', size]  output buffer of <size> bytes.",
+    "Placeholders use Python format syntax and may carry a format spec, e.g. {start:%y%m%d%H%M}.",
+    "{port} is filled from the encoder (1 = Pro HID D801-M1, 0 = legacy).",
+    "'calibrated': false means the argument order/format was inferred from disassembly and has",
+    "NOT been confirmed on a real encoder. The gateway refuses those operations until an admin",
+    "verifies them and marks them calibrated (PATCH /v1/templates/{name}) - see docs/CALIBRATION.md.",
+    "Changes made through the API are stored in the database and override this file."
+  ],
+  "version": {
+    "fn": "GetDLLVersion",
+    "args": [
+      ["o", 32]
+    ],
+    "calibrated": true
+  },
+  "beep": {
+    "fn": "Buzzer",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{code}"]
+    ],
+    "calibrated": true
+  },
+  "read_card": {
+    "fn": "ReadCard",
+    "args": [
+      ["i", "{port}"],
+      ["o", 128]
+    ],
+    "calibrated": true
+  },
+  "card_type": {
+    "fn": "GetCardTypeByCardDataStr",
+    "args": [
+      ["s", "{card}"],
+      ["o", 4]
+    ],
+    "calibrated": true
+  },
+  "issue_guest": {
+    "fn": "GuestCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{building}"],
+      ["i", "{floor}"],
+      ["i", "{room}"],
+      ["i", "{card_index}"],
+      ["s", "{start:%y%m%d%H%M}"],
+      ["s", "{end:%y%m%d%H%M}"],
+      ["s", "{lock_str}"],
+      ["o", 128]
+    ],
+    "defaults": {"co_id": 79375, "card_index": 0, "lock_str": ""},
+    "calibrated": false,
+    "note": "10 args / stdcall are certain; args 7-9 are strings. co_id 79375 = 0x1360F = dlsCoID in System.ini; its low 16 bits (360F) appear in every card. Order of the other ints, the time format and arg 9 are inferred."
+  },
+  "erase_card": {
+    "fn": "CardErase",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{mode}"],
+      ["o", 128]
+    ],
+    "defaults": {"mode": 0},
+    "calibrated": false,
+    "note": "3 args / stdcall are certain; meaning of args 2-3 is inferred."
+  },
+  "issue_master": {
+    "fn": "MasterCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{valid_from:%y%m%d%H%M}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["s", "{time_window}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_emergency": {
+    "fn": "EmergencyCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{valid_from:%y%m%d%H%M}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["s", "{time_window}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_building": {
+    "fn": "BuildingCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["i", "{building}"],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{valid_from:%y%m%d%H%M}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["s", "{time_window}"],
+      ["s", "{holder}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_floor": {
+    "fn": "FloorCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["i", "{building}"],
+      ["i", "{floor}"],
+      ["i", 0],
+      ["s", "{valid_from:%y%m%d%H%M}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["s", "{time_window}"],
+      ["s", "{holder}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_group": {
+    "fn": "GroupCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{valid_from:%y%m%d%H%M}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["s", "{time_window}"],
+      ["i", "{group_no}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_checkout": {
+    "fn": "CheckOutCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", "{cover}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_record": {
+    "fn": "RecordCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_loss": {
+    "fn": "LimitCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{card_index}"],
+      ["i", 0],
+      ["s", "{target_card}"],
+      ["s", "{valid_to:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_authorization": {
+    "fn": "ResetCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{now:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_room_set": {
+    "fn": "RoomSetCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{building}"],
+      ["i", "{floor}"],
+      ["i", "{room}"],
+      ["s", "{room_no}"],
+      ["s", "{now:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_clock_set": {
+    "fn": "TimeSetCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", 0],
+      ["i", 0],
+      ["i", 0],
+      ["s", "{clock:%y%m%d%H%M}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_group_set": {
+    "fn": "GroupSetCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{co_id}"],
+      ["i", "{group_mode}"],
+      ["i", "{group_no}"],
+      ["s", "{now:%y%m%d%H%M}"],
+      ["i", 0],
+      ["i", 0],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "issue_system": {
+    "fn": "SpecialCard",
+    "args": [
+      ["i", "{port}"],
+      ["i", "{options}"],
+      ["o", 128]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  },
+  "read_record": {
+    "fn": "ReadRecord",
+    "args": [
+      ["i", "{port}"],
+      ["o", 4096]
+    ],
+    "calibrated": false,
+    "note": "Arg count/types from disassembly are certain; order and formats are inferred - calibrate on hardware."
+  }
+}
