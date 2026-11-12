@@ -194,7 +194,9 @@ def test_uncalibrated_operations_are_blocked_until_admin_calibrates(gateway):
     a = AgentThread(gateway.ws, "desk-1", register(gateway, "desk-1")).start()
     try:
         wait_online(gateway, "desk-1")
-        c = client(gateway)
+        # Low-level card writes bypass stays and card records: calibration (admin) only.
+        assert client(gateway).post("/v1/encoders/desk-1/cards/erase").status_code == 403
+        c = admin(gateway)
         guest = {"building": 1, "floor": 2, "room": 3,
                  "start": "2026-11-08T14:00:00", "end": "2026-11-09T12:00:00"}
 

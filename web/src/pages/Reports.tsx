@@ -103,7 +103,9 @@ export default function Reports() {
         actions={<>
           {tab === "open" && <Button icon={<Upload className="size-4" />} onClick={() => setUpload(true)}>{t("reports.uploadRecord")}</Button>}
           <Button icon={<Printer className="size-4" />} onClick={() => window.print()}>{t("reports.print")}</Button>
-          <Button icon={<Download className="size-4" />} loading={exporting} onClick={exportCsv}>{t("reports.export")}</Button>
+          {can("reports_manage") && (
+            <Button icon={<Download className="size-4" />} loading={exporting} onClick={exportCsv}>{t("reports.export")}</Button>
+          )}
           {can("reports_manage") && (
             <Button variant="ghost" icon={<Trash2 className="size-4" />} loading={cleanup.isPending}
               onClick={async () => { if (await confirm({ title: t("reports.cleanupTitle"), message: t(`reports.cleanup.${tab}`), danger: true, confirmLabel: t("common.delete") })) cleanup.mutate(); }}>

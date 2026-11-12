@@ -838,5 +838,10 @@ const dict: Record<string, string> = {
   "audit.loadMore": "تحميل المزيد",
   "audit.apiKey": "مفتاح API",
   "audit.agent": "الوكيل {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "الغرفة {room_no} أو رقم القفل {lock} مستخدم بالفعل.",
+  "error.building_exists": "رقم المبنى {no} موجود بالفعل.",
+  "error.encoder_exists": "يوجد بالفعل جهاز ترميز بالمعرّف {id}.",
+  "checkin.reservationConflict": "الغرفة {room} محجوزة اعتبارًا من {time}. اختر موعد مغادرة أبكر أو غرفة أخرى.",
 };
 export default dict;

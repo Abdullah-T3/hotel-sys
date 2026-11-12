@@ -792,5 +792,10 @@ const dict: Record<string, string> = {
   "audit.loadMore": "Загрузить ещё",
   "audit.apiKey": "API-ключ",
   "audit.agent": "Агент {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "Номер {room_no} или номер замка {lock} уже используется.",
+  "error.building_exists": "Корпус с номером {no} уже существует.",
+  "error.encoder_exists": "Энкодер с ID {id} уже существует.",
+  "checkin.reservationConflict": "Номер {room} забронирован с {time}. Выберите более раннее выселение или другой номер.",
 };
 export default dict;

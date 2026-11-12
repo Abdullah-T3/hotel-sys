@@ -17,6 +17,10 @@ import SettingsPage from "./pages/settings/Settings";
 import Setup from "./pages/Setup";
 import StaffCards from "./pages/StaffCards";
 
+// The app remounts on language change, so this lives at module level: an operator's saved language is
+// applied once per sign-in - after that, their own choice in the menu wins.
+let languageAppliedFor: number | null = null;
+
 function Guard({ perm, children }: { perm: string | string[]; children: ReactNode }) {
   const { can } = useApp();
   const { t } = useI18n();
@@ -42,10 +46,12 @@ export default function App() {
     const def = setup.data?.default_language;
     if (!localStorage.getItem("d801.lang") && isLang(def) && def !== lang) setLang(def);
   }, [setup.data, lang, setLang]);
-  // After sign-in, use the operator's own language.
+  // After sign-in, use the operator's own saved language (once).
   useEffect(() => {
-    const own = meta?.me.operator?.language;
-    if (isLang(own) && own !== lang) setLang(own);
+    const op = meta?.me.operator;
+    if (!op || languageAppliedFor === op.id) return;
+    languageAppliedFor = op.id;
+    if (isLang(op.language) && op.language !== lang) setLang(op.language);
   }, [meta, lang, setLang]);
 
   if (setup.isLoading) return <FullPage><Spinner className="size-6" /></FullPage>;

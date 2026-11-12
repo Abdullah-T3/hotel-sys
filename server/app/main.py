@@ -97,7 +97,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         state = st(request)
         token = new_token()
         if not state.db.create_encoder(body.id, body.name, hash_token(token)):
-            raise GatewayError(409, "exists", "Encoder %r already exists" % body.id)
+            raise GatewayError(409, "encoder_exists", "Encoder %r already exists" % body.id, id=body.id)
         state.db.audit(p.actor, "encoder.create", True, encoder_id=body.id, request=body.model_dump())
         return EncoderCreated(token=token, **encoder_out(state, state.db.get_encoder(body.id)).model_dump())
 
@@ -166,8 +166,9 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
 
     @app.post("/v1/encoders/{encoder_id}/cards/guest", response_model=CardOpOut, tags=["encoders"])
     async def issue_guest(encoder_id: str, body: GuestCardIn, request: Request,
-                          p: Principal = Depends(require("reception"))):
-        """Low-level guest card (no stay is recorded). The hotel flow is POST /v1/reception/check-in."""
+                          p: Principal = Depends(require("calibration"))):
+        """Low-level guest card for calibration - no stay or card record is kept.
+        Front desk uses POST /v1/reception/check-in."""
         params = dict(body.options)
         params.update(building=body.building, floor=body.floor, room=body.room, start=body.start, end=body.end)
         _, outs, cal = await run_template(st(request), p, encoder_id, "issue_guest", params,
@@ -176,7 +177,8 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         return CardOpOut(card_data=card or None, calibrated=cal)
 
     @app.post("/v1/encoders/{encoder_id}/cards/erase", response_model=CardOpOut, tags=["encoders"])
-    async def erase_card(encoder_id: str, request: Request, p: Principal = Depends(require("reception"))):
+    async def erase_card(encoder_id: str, request: Request, p: Principal = Depends(require("calibration"))):
+        """Low-level erase for calibration - card records are not updated. Front desk uses POST /v1/cards/erase."""
         _, _, cal = await run_template(st(request), p, encoder_id, "erase_card", {})
         return CardOpOut(calibrated=cal)
 

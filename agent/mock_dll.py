@@ -101,7 +101,9 @@ class MockEncoder(object):
             return NO_CARD, _zero_outs(descs)
         ints = [int(d[1]) for d in descs if d[0] == "i"]
         bld, flr, room = (ints + [0, 0, 0, 0, 0])[2:5]
-        self.card = ("D801360F3E%02X%02X%02X" % (bld, flr, room)).ljust(32, "0")
+        # A running serial makes every card unique, like the dates inside real guest cards do.
+        self.serial = getattr(self, "serial", 0) + 1
+        self.card = ("D801360F3E%02X%02X%02X%06X" % (bld, flr, room, self.serial)).ljust(32, "0")
         return 0, [_out(self.card.encode("ascii"), int(d[1])) for d in descs if d[0] == "o"]
 
     def _CardErase(self, descs):

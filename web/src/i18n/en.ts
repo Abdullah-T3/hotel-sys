@@ -747,6 +747,11 @@ const en = {
   "audit.loadMore": "Load more",
   "audit.apiKey": "API key",
   "audit.agent": "Agent {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "Room {room_no} or lock number {lock} is already in use.",
+  "error.building_exists": "Building number {no} already exists.",
+  "error.encoder_exists": "An encoder with id {id} already exists.",
+  "checkin.reservationConflict": "Room {room} is reserved from {time}. Choose an earlier check-out or another room.",
 } as const;
 
 export default en;

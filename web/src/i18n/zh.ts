@@ -723,5 +723,10 @@ const dict: Record<string, string> = {
   "audit.loadMore": "加载更多",
   "audit.apiKey": "API 密钥",
   "audit.agent": "代理程序 {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "房号 {room_no} 或锁号 {lock} 已被使用。",
+  "error.building_exists": "楼栋编号 {no} 已存在。",
+  "error.encoder_exists": "编号为 {id} 的发卡器已存在。",
+  "checkin.reservationConflict": "房间 {room} 自 {time} 起已被预订。请选择更早的退房时间或其他房间。",
 };
 export default dict;

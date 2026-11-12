@@ -59,7 +59,8 @@ function RoomDialog({ open, onClose, building, room }: { open: boolean; onClose:
     setForm(room ? { room_no: room.room_no, floor_no: String(room.floor_no), lock_room: String(room.lock_room), room_type: room.room_type,
       price: String(room.price), hour_start_price: String(room.hour_start_price), hour_price: String(room.hour_price),
       max_cards: String(room.max_cards), public_door: room.public_door, note: room.note ?? "" } : blankForm());
-  }, [open, room]);
+    save.reset();
+  }, [open, room]);  // eslint-disable-line react-hooks/exhaustive-deps
   const save = useMutation({
     mutationFn: () => {
       const body = { ...payload(form), room_no: form.room_no.trim(), floor_no: Number(form.floor_no), lock_room: Number(form.lock_room) };
@@ -97,7 +98,7 @@ function BatchDialog({ open, onClose, building }: { open: boolean; onClose: () =
   const [floors, setFloors] = useState("1-5");
   const [rooms, setRooms] = useState("101-518");
   const [form, setForm] = useState<RoomForm>(blankForm());
-  useEffect(() => { if (open) { setFloors("1-5"); setRooms("101-518"); setForm(blankForm()); } }, [open]);
+  useEffect(() => { if (open) { setFloors("1-5"); setRooms("101-518"); setForm(blankForm()); save.reset(); } }, [open]);  // eslint-disable-line react-hooks/exhaustive-deps
   const preview = useMemo(() => expand(floors, rooms), [floors, rooms]);
   const save = useMutation({
     mutationFn: () => api.post<{ created: string[]; skipped: string[] }>("/v1/rooms/batch", { building_no: building, floors, rooms, ...payload(form) }),
@@ -141,7 +142,8 @@ function BuildingDialog({ open, onClose, building, used }: { open: boolean; onCl
     if (!open) return;
     setNo(String(building?.no ?? Array.from({ length: 16 }, (_, i) => i).find((i) => !used.includes(i) && i > 0) ?? 0));
     setName(building?.name ?? "");
-  }, [open, building, used]);
+    save.reset();
+  }, [open, building, used]);  // eslint-disable-line react-hooks/exhaustive-deps
   const save = useMutation({
     mutationFn: () => building ? api.patch(`/v1/buildings/${building.no}`, { name }) : api.post("/v1/buildings", { no: Number(no), name }),
     onSuccess: () => { invalidate(); onClose(); },
@@ -199,12 +201,14 @@ export default function Rooms() {
         <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
           <Card className="p-2 h-fit">
             {buildings.data.map((x) => (
-              <div key={x.no} className={clsx("group flex items-center gap-2 rounded-lg px-3 h-10 cursor-pointer",
-                x.no === current ? "bg-primary-soft text-primary" : "hover:bg-surface-2")} onClick={() => setSelected(x.no)}>
+              <button key={x.no} type="button" onClick={() => setSelected(x.no)} aria-current={x.no === current ? "true" : undefined}
+                className={clsx("flex w-full items-center gap-2 rounded-lg px-3 h-10 text-start",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  x.no === current ? "bg-primary-soft text-primary" : "hover:bg-surface-2")}>
                 <Building2 className="size-4 shrink-0" />
                 <span className="flex-1 truncate text-sm font-medium">{x.name}</span>
                 <span className="text-xs text-muted tabular-nums">{x.rooms}</span>
-              </div>
+              </button>
             ))}
           </Card>
           {b && (

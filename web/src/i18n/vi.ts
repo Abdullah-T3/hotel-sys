@@ -723,5 +723,10 @@ const dict: Record<string, string> = {
   "audit.loadMore": "Tải thêm",
   "audit.apiKey": "Khóa API",
   "audit.agent": "Agent {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "Phòng {room_no} hoặc số khóa {lock} đã được sử dụng.",
+  "error.building_exists": "Số tòa nhà {no} đã tồn tại.",
+  "error.encoder_exists": "Đã có máy ghi thẻ với mã {id}.",
+  "checkin.reservationConflict": "Phòng {room} đã được đặt từ {time}. Hãy chọn giờ trả phòng sớm hơn hoặc phòng khác.",
 };
 export default dict;

@@ -66,7 +66,7 @@ function StayPanel({ stayId, room, rooms }: { stayId: number; room: BoardRoom; r
   if (q.isLoading || !q.data) return <div className="p-6 flex justify-center"><Spinner /></div>;
   const s = q.data;
   const primary = s.guests[0];
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["stay", stayId] }); qc.invalidateQueries({ queryKey: ["board"] }); };
+  const refresh = () => ["stay", "board", "parties", "available", "report"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   const noCard = s.cards_issued === 0;
   const atMax = s.cards_issued >= s.room.max_cards;
   const idType = primary?.id_type ? (ID_TYPE_KEYS[primary.id_type] ? t(`idType.${ID_TYPE_KEYS[primary.id_type]}`) : primary.id_type) : t("guest.id");
@@ -111,22 +111,26 @@ function StayPanel({ stayId, room, rooms }: { stayId: number; room: BoardRoom; r
       </Section>
 
       <Section title={t("drawer.actions")}>
-        {noCard ? (
-          <div className="space-y-2">
+        {noCard && (
+          <div className="space-y-2 mb-3">
             <Notice tone="amber" icon={<CreditCard className="size-4" />}>{t("drawer.noCardYet")}</Notice>
-            <CardStep op="issue_guest" actionLabel={t("drawer.writeRoomCard")} run={() => api.post(`/v1/stays/${s.id}/cards`, { encoder_id: encoderId })}
-              onDone={() => { toast.success(t("cardStep.written")); refresh(); }} />
+            {!s.overdue && (
+              <CardStep op="issue_guest" actionLabel={t("drawer.writeRoomCard")} run={() => api.post(`/v1/stays/${s.id}/cards`, { encoder_id: encoderId })}
+                onDone={() => { toast.success(t("cardStep.written")); refresh(); }} />
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
+        )}
+        {/* The actions are always available - also for a team room that has no card yet. */}
+        <div className="grid grid-cols-2 gap-2">
+          {!noCard && (
             <Button icon={<CreditCard className="size-4" />} disabled={atMax || s.overdue}
               title={atMax ? t("drawer.maxCards", { count: s.room.max_cards }) : s.overdue ? t("drawer.extendFirst") : undefined}
               onClick={() => { setShowExtra(!showExtra); setExtraKey((k) => k + 1); }}>{t("drawer.anotherCard")}</Button>
-            <Button icon={<CalendarPlus className="size-4" />} onClick={() => setDialog("extend")}>{t("drawer.extend")}</Button>
-            <Button icon={<ArrowRightLeft className="size-4" />} onClick={() => setDialog("move")}>{t("drawer.changeRoom")}</Button>
-            <Button variant="primary" icon={<LogOut className="size-4 rtl:-scale-x-100" />} onClick={() => setDialog("checkout")}>{t("checkout.checkOut")}</Button>
-          </div>
-        )}
+          )}
+          <Button icon={<CalendarPlus className="size-4" />} onClick={() => setDialog("extend")}>{t("drawer.extend")}</Button>
+          <Button icon={<ArrowRightLeft className="size-4" />} onClick={() => setDialog("move")}>{t("drawer.changeRoom")}</Button>
+          <Button variant="primary" icon={<LogOut className="size-4 rtl:-scale-x-100" />} onClick={() => setDialog("checkout")}>{t("checkout.checkOut")}</Button>
+        </div>
         {showExtra && !noCard && (
           <div className="mt-3">
             <CardStep key={extraKey} op="issue_guest" actionLabel={t("checkin.writeExtra")} doneLabel={t("drawer.extraWritten")}
@@ -178,7 +182,7 @@ function ReservationPanel({ room }: { room: BoardRoom }) {
   return (
     <Section title={t("drawer.reservation")}>
       <div className="font-semibold">{r.party_name}</div>
-      <div className="text-[13px] text-muted">{fmtDateTime(r.check_in)} → {fmtDateTime(r.check_out)}</div>
+      <div className="text-[13px] text-muted">{fmtDateTime(r.check_in)} – {fmtDateTime(r.check_out)}</div>
       {!room.stay && (
         <div className="mt-3 space-y-2">
           {early && <Notice tone="blue">{t("drawer.earlyArrival")}</Notice>}

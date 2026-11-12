@@ -81,3 +81,9 @@ export function actorName(actor: string | null | undefined) {
   if (actor.startsWith("agent:")) return ctx.t("audit.agent", { id: actor.slice(6) });
   return actor;
 }
+
+/** Whole nights from today until a check-out date (at least 1). */
+export function nightsFromToday(value: string | null | undefined) {
+  const d = parse(value);
+  return d && !Number.isNaN(d.getTime()) ? Math.max(1, differenceInCalendarDays(d, new Date())) : 1;
+}

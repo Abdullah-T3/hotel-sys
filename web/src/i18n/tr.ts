@@ -746,5 +746,10 @@ const dict: Record<string, string> = {
   "audit.loadMore": "Daha fazla yükle",
   "audit.apiKey": "API anahtarı",
   "audit.agent": "Ajan {id}",
+  // added in the November 2026 fixes
+  "error.room_exists": "Oda {room_no} veya kilit numarası {lock} zaten kullanılıyor.",
+  "error.building_exists": "Bina numarası {no} zaten mevcut.",
+  "error.encoder_exists": "Kimliği {id} olan bir kart kodlayıcı zaten mevcut.",
+  "checkin.reservationConflict": "Oda {room} şu andan itibaren rezerve: {time}. Daha erken bir çıkış ya da başka bir oda seçin.",
 };
 export default dict;

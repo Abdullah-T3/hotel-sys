@@ -7,10 +7,10 @@ import { CardStep } from "../components/CardWriter";
 import { Dialog, useConfirm } from "../components/Dialog";
 import { Badge, Button, Card, Checkbox, Empty, Input, PageHeader, Segmented, Spinner } from "../components/ui";
 import { useI18n } from "../i18n";
-import { api, type Party } from "../lib/api";
+import { api, type Party, type Stay } from "../lib/api";
 import { useApp } from "../lib/app";
 import { fmtDateTime } from "../lib/format";
-import { ID_TYPE_KEYS, ReservationDialog, TeamDialog } from "./reception/dialogs";
+import { ExtendDialog, ID_TYPE_KEYS, ReservationDialog, TeamDialog } from "./reception/dialogs";
 
 const STAY_TONE = { reserved: "violet", active: "blue", checked_out: "gray", cancelled: "gray" } as const;
 
@@ -21,6 +21,7 @@ function PartyCard({ party }: { party: Party }) {
   const qc = useQueryClient();
   const [arriving, setArriving] = useState<Party["stays"][number] | null>(null);
   const [cancelPick, setCancelPick] = useState<number[] | null>(null);
+  const [extending, setExtending] = useState<Stay | null>(null);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["parties"] }); qc.invalidateQueries({ queryKey: ["board"] }); };
   const reserved = party.stays.filter((s) => s.status === "reserved");
   const active = party.stays.filter((s) => s.status === "active");
@@ -48,7 +49,7 @@ function PartyCard({ party }: { party: Party }) {
             <Badge tone={party.kind === "team" ? "violet" : "blue"}>{t(`groups.kind.${party.kind}`)}</Badge>
           </div>
           <div className="mt-1 text-[13px] text-muted flex flex-wrap gap-x-3">
-            {first && <span>{fmtDateTime(first.check_in)} → {fmtDateTime(first.check_out)}</span>}
+            {first && <span>{fmtDateTime(first.check_in)} – {fmtDateTime(first.check_out)}</span>}
             {party.phone && <span className="flex items-center gap-1"><Phone className="size-3" /><span dir="ltr">{party.phone}</span></span>}
             {party.leader_id_no && <span>{idType} {party.leader_id_no}</span>}
           </div>
@@ -76,9 +77,14 @@ function PartyCard({ party }: { party: Party }) {
               <Badge tone={STAY_TONE[s.status]}>{t(`stayStatus.${s.status}`)}</Badge>
             </div>
             <div className="text-[11px] text-muted">{s.room_type}</div>
-            {s.status === "reserved" && (
+            {s.status === "reserved" && new Date(s.check_out) > new Date() && (
               <Button size="sm" variant="primary" className="mt-2 w-full" icon={<LogIn className="size-3.5 rtl:-scale-x-100" />}
                 onClick={() => setArriving(s)}>{t("groups.checkIn")}</Button>
+            )}
+            {s.status === "reserved" && new Date(s.check_out) <= new Date() && (
+              // The reservation already ended (late arrival): extend it first, then it can be checked in.
+              <Button size="sm" className="mt-2 w-full" icon={<CalendarPlus className="size-3.5" />}
+                onClick={async () => setExtending(await api.get<Stay>(`/v1/stays/${s.id}`))}>{t("drawer.extend")}</Button>
             )}
             {s.status === "active" && s.cards_issued === 0 && (
               <Button size="sm" className="mt-2 w-full" icon={<CreditCard className="size-3.5" />} onClick={() => setArriving(s)}>{t("cardStep.writeCard")}</Button>
@@ -102,6 +108,8 @@ function PartyCard({ party }: { party: Party }) {
         )}
       </Dialog>
 
+      <ExtendDialog stay={extending} open={!!extending} onClose={() => { setExtending(null); refresh(); }} />
+
       <Dialog open={!!cancelPick} onClose={() => setCancelPick(null)} title={t("groups.cancelTitle")} size="sm"
         description={t("groups.cancelText")}
         footer={<>
@@ -109,7 +117,7 @@ function PartyCard({ party }: { party: Party }) {
           <Button variant="danger" disabled={!cancelPick?.length} loading={cancel.isPending}
             onClick={() => cancel.mutate(cancelPick)}>{t("groups.cancelRooms", { count: cancelPick?.length ?? 0 })}</Button>
         </>}>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {reserved.map((s) => (
             <Checkbox key={s.id} label={`${t("drawer.room", { room: s.room_no })} · ${s.room_type}`} checked={!!cancelPick?.includes(s.id)}
               onChange={(v) => setCancelPick(v ? [...(cancelPick ?? []), s.id] : (cancelPick ?? []).filter((x) => x !== s.id))} />

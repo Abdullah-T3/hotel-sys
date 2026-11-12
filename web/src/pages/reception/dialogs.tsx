@@ -9,7 +9,7 @@ import { Badge, Button, Checkbox, Field, Input, Notice, Segmented, Select, Spinn
 import { useI18n, useT } from "../../i18n";
 import { api, ApiError, type BoardRoom, type CardInspection, type Guest, type Party, type Room, type Stay } from "../../lib/api";
 import { useApp } from "../../lib/app";
-import { defaultCheckout, fmtDateTime, money, toLocalInput } from "../../lib/format";
+import { defaultCheckout, fmtDateTime, money, nightsFromToday, toLocalInput } from "../../lib/format";
 
 // ------------------------------------------------------------------------------------- shared bits
 export const emptyGuest = (): Guest => ({ name: "", sex: null, id_type: null, id_no: "", phone: "" });
@@ -61,11 +61,18 @@ function StayDates({ checkOut, setCheckOut, vip, setVip, showVip = true }: {
 }) {
   const { meta } = useApp();
   const t = useT();
-  const [nights, setNights] = useState(1);
   const time = vip ? meta!.vip_checkout_time : meta!.checkout_time;
-  const applyNights = (n: number, v = vip) => {
-    setNights(n);
-    setCheckOut(defaultCheckout(n, v ? meta!.vip_checkout_time : meta!.checkout_time));
+  // "Nights" always follows the chosen date, so the two can never disagree.
+  const nights = nightsFromToday(checkOut);
+  const applyNights = (n: number) => setCheckOut(defaultCheckout(n, time));
+  // VIP only moves the check-out *time*; a date picked by hand is kept.
+  const toggleVip = (v: boolean) => {
+    setVip?.(v);
+    const d = new Date(checkOut);
+    if (Number.isNaN(d.getTime())) return;
+    const [h, m] = (v ? meta!.vip_checkout_time : meta!.checkout_time).split(":").map(Number);
+    d.setHours(h, m, 0, 0);
+    setCheckOut(toLocalInput(d));
   };
   return (
     <div className="space-y-2">
@@ -78,7 +85,7 @@ function StayDates({ checkOut, setCheckOut, vip, setVip, showVip = true }: {
         </Field>
       </div>
       {showVip && setVip && (
-        <Checkbox checked={!!vip} onChange={(v) => { setVip(v); applyNights(nights, v); }}
+        <Checkbox checked={!!vip} onChange={toggleVip}
           label={<span className="inline-flex items-center gap-1"><Star className="size-3.5 text-amber-500" />{t("stay.vip")}</span>} />
       )}
     </div>
@@ -90,12 +97,15 @@ export function RoomPicker({ rooms, selected, onToggle, multi, emptyText }: {
 }) {
   const t = useT();
   if (!rooms.length) return <div className="rounded-lg border border-dashed border-line p-4 text-center text-sm text-muted">{emptyText ?? t("rooms.noFreeRooms")}</div>;
+  // Room numbers repeat across buildings (106 in Main and in the Garden wing): then show the building.
+  const manyBuildings = new Set(rooms.map((r) => r.building_no)).size > 1;
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2 max-h-60 overflow-y-auto pe-1">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-2 max-h-60 overflow-y-auto pe-1">
       {rooms.map((r) => {
         const on = selected.includes(r.id);
         return (
           <button key={r.id} type="button" onClick={() => onToggle(r.id)} aria-pressed={on}
+            aria-label={`${t("drawer.room", { room: r.room_no })} · ${r.building_name} · ${r.room_type}`}
             className={clsx("relative rounded-lg border px-2.5 py-2 text-start transition",
               on ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line bg-surface hover:bg-surface-2")}>
             <div className="flex items-center gap-1.5">
@@ -103,7 +113,7 @@ export function RoomPicker({ rooms, selected, onToggle, multi, emptyText }: {
               <span className="font-semibold tabular-nums text-sm">{r.room_no}</span>
               {multi && on && <CheckCircle2 className="ms-auto size-3.5 text-primary" />}
             </div>
-            <div className="text-[11px] text-muted truncate">{r.room_type}</div>
+            <div className="text-[11px] text-muted truncate">{manyBuildings ? `${r.building_name} · ${r.room_type}` : r.room_type}</div>
           </button>
         );
       })}
@@ -117,7 +127,20 @@ function useInvalidate() {
     qc.invalidateQueries({ queryKey: ["board"] });
     qc.invalidateQueries({ queryKey: ["parties"] });
     qc.invalidateQueries({ queryKey: ["stay"] });
+    qc.invalidateQueries({ queryKey: ["available"] });
+    qc.invalidateQueries({ queryKey: ["report"] });
   };
+}
+
+/** Rooms free for the whole period, with their live board status for the coloured dot. */
+function useFreeRooms(enabled: boolean, checkIn: string, checkOut: string, board: BoardRoom[] = [], key = "") {
+  const q = useQuery({
+    queryKey: ["available", key, checkIn, checkOut],
+    queryFn: () => api.get<Room[]>("/v1/rooms/available", { check_in: checkIn, check_out: checkOut }),
+    enabled: enabled && !!checkIn && !!checkOut && new Date(checkOut) > new Date(checkIn),
+  });
+  const status = new Map(board.map((r) => [r.id, r.status]));
+  return { ...q, rooms: (q.data ?? []).map((r) => ({ ...r, status: status.get(r.id) })) };
 }
 
 // ------------------------------------------------------------------------------------- check-in
@@ -149,11 +172,20 @@ export function CheckInDialog({ open, onClose, rooms, room: fixedRoom, initialKi
     setStay(null); setExtraCards(0); setPrice("");
   }, [open, fixedRoom?.id, initialKind, meta]);
 
-  const free = useMemo(() => rooms.filter((r) => ["VC", "VD", "OT"].includes(r.status)), [rooms]);
+  // Offer only rooms that are free for the whole stay (not just "vacant right now").
+  const stayEnd = kind === "hourly" ? toLocalInput(new Date(Date.now() + hours * 3600_000)) : checkOut;
+  const startedAt = useMemo(() => toLocalInput(new Date()), [open]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const freeQ = useFreeRooms(open && !fixedRoom && !stay, startedAt, stayEnd, rooms, "checkin");
+  const free = freeQ.rooms;
+  useEffect(() => {
+    if (!fixedRoom && roomId && freeQ.data && !freeQ.data.some((r) => r.id === roomId)) setRoomId(null);
+  }, [freeQ.data, roomId, fixedRoom]);
   const room = rooms.find((r) => r.id === roomId) ?? fixedRoom ?? null;
   const suggested = room ? (kind === "hourly" ? room.hour_start_price + room.hour_price * hours : room.price) : 0;
-  const valid = !!room && guest.name.trim().length > 0 && (kind === "hourly" || new Date(checkOut) > new Date());
   const reserved = room?.status === "OT";
+  // A room with a later reservation can only be sold until that reservation starts.
+  const resConflict = !!room && !reserved && !!room.reservation && new Date(room.reservation.check_in) < new Date(stayEnd);
+  const valid = !!room && guest.name.trim().length > 0 && (kind === "hourly" || new Date(checkOut) > new Date()) && !resConflict;
   const cards = 1 + extraCards;
 
   const run = () => api.post<Stay>("/v1/reception/check-in", {
@@ -185,11 +217,15 @@ export function CheckInDialog({ open, onClose, rooms, room: fixedRoom, initialKi
         <div className="space-y-5">
           {!fixedRoom && (
             <Field label={t("common.room")} required group>
-              <RoomPicker rooms={free} selected={roomId ? [roomId] : []} onToggle={setRoomId} emptyText={t("rooms.noVacantRooms")} />
+              {freeQ.isLoading ? <Spinner /> : (
+                <RoomPicker rooms={free} selected={roomId ? [roomId] : []} onToggle={setRoomId} emptyText={t("rooms.noVacantRooms")} />
+              )}
             </Field>
           )}
           {reserved && <Notice tone="amber">{tr("checkin.reservedWarning", { room: room?.room_no, party: <b>{room?.reservation?.party_name}</b>,
             time: fmtDateTime(room?.reservation?.check_in) })}</Notice>}
+          {resConflict && <Notice tone="red">{t("checkin.reservationConflict", { room: room!.room_no,
+            time: fmtDateTime(room!.reservation!.check_in) })}</Notice>}
           {room?.status === "VD" && <Notice tone="amber">{t("checkin.dirtyWarning", { room: room.room_no })}</Notice>}
 
           <Segmented value={kind} onChange={setKind} options={[{ value: "walkin", label: t("checkin.overnight") }, { value: "hourly", label: t("checkin.hourly") }]} />
@@ -228,7 +264,9 @@ export function CheckInDialog({ open, onClose, rooms, room: fixedRoom, initialKi
           <CardStep op="issue_guest" actionLabel={t("checkin.submit")} run={run}
             instruction={room ? tr("checkin.placeCardRoom", { encoder: <b>{encoder?.name ?? t("encoder.theEncoder")}</b>, room: <b>{room.room_no}</b> })
               : undefined}
-            disabled={!valid} disabledReason={!room ? t("checkin.needRoom") : !guest.name.trim() ? t("checkin.needName") : t("checkin.needFuture")}
+            disabled={!valid} disabledReason={!room ? t("checkin.needRoom") : resConflict
+              ? t("checkin.reservationConflict", { room: room.room_no, time: fmtDateTime(room.reservation!.check_in) })
+              : !guest.name.trim() ? t("checkin.needName") : t("checkin.needFuture")}
             onDone={(s) => { setStay(s); invalidate(); toast.success(t("checkin.doneTitle", { room: s.room.room_no })); }} />
         </div>
       )}
@@ -252,7 +290,7 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
   useEffect(() => {
     if (!open) return;
     setLeader(emptyGuest()); setCheckOut(defaultCheckout(1, meta!.checkout_time)); setSelected([]); setPrice(""); setNote("");
-    setParty(null); setSkipped([]);
+    setParty(null); setSkipped([]); create.reset();
   }, [open, meta]);
 
   const avail = useQuery({
@@ -260,6 +298,9 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
     queryFn: () => api.get<Room[]>("/v1/rooms/available", { check_in: toLocalInput(new Date()), check_out: checkOut }),
     enabled: open && !party && !!checkOut && new Date(checkOut) > new Date(),
   });
+  useEffect(() => {
+    if (avail.data) setSelected((sel) => sel.filter((id) => avail.data.some((r) => r.id === id)));
+  }, [avail.data]);
   const create = useMutation({
     mutationFn: () => api.post<Party>("/v1/reception/team", { leader: clean(leader), room_ids: selected, check_out: checkOut,
       price: price === "" ? undefined : Number(price), note: note.trim() || undefined }),
@@ -342,6 +383,7 @@ export function ReservationDialog({ open, onClose }: { open: boolean; onClose: (
     ci.setDate(ci.getDate() + 1);
     ci.setHours(14, 0, 0, 0);
     setLeader(emptyGuest()); setCheckIn(toLocalInput(ci)); setCheckOut(defaultCheckout(2, meta!.checkout_time)); setSelected([]); setNote("");
+    create.reset();
   }, [open, meta]);
 
   const validDates = !!checkIn && !!checkOut && new Date(checkOut) > new Date(checkIn);
@@ -406,6 +448,7 @@ export function ExtendDialog({ stay, open, onClose }: { stay: Stay | null; open:
     base.setHours(h, m, 0, 0);
     setCheckOut(toLocalInput(base));
     setRewrite(stay.status === "active");
+    save.reset();
   }, [open, stay, meta]);
 
   const bump = (days: number) => {
@@ -456,15 +499,21 @@ export function MoveDialog({ stay, rooms, open, onClose }: { stay: Stay | null; 
   const invalidate = useInvalidate();
   const [target, setTarget] = useState<number | null>(null);
   useEffect(() => { if (open) setTarget(null); }, [open]);
+  // Only rooms free for the rest of this guest's stay (a room reserved tomorrow is not "free").
+  const startedAt = useMemo(() => toLocalInput(new Date()), [open]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const until = stay && new Date(stay.check_out) > new Date() ? stay.check_out : toLocalInput(new Date(Date.now() + 60_000));
+  const freeQ = useFreeRooms(open && !!stay, startedAt, until, rooms, "move");
   if (!stay) return null;
-  const free = rooms.filter((r) => ["VC", "VD"].includes(r.status) && r.id !== stay.room_id);
+  const free = freeQ.rooms.filter((r) => r.id !== stay.room_id);
   const to = rooms.find((r) => r.id === target);
 
   return (
     <Dialog open={open} onClose={onClose} title={t("move.title", { room: stay.room.room_no })} icon={<ArrowRightLeft className="size-5" />}
       description={stay.guests[0]?.name} footer={<Button onClick={onClose}>{t("common.close")}</Button>}>
       <div className="space-y-4">
-        <Field label={t("move.to")} group><RoomPicker rooms={free} selected={target ? [target] : []} onToggle={setTarget} /></Field>
+        <Field label={t("move.to")} group>
+          {freeQ.isLoading ? <Spinner /> : <RoomPicker rooms={free} selected={target ? [target] : []} onToggle={setTarget} />}
+        </Field>
         {to && to.price !== stay.room.price && (
           <Notice tone="blue">{t("move.rateDiff", { room: to.room_no, price: money(to.price), current: money(stay.room.price) })}</Notice>
         )}

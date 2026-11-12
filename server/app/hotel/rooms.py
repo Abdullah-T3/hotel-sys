@@ -33,7 +33,7 @@ async def create_building(body: BuildingIn, request: Request, p: Principal = Dep
     try:
         db.execute("INSERT INTO buildings (no, name) VALUES (?,?)", (body.no, body.name))
     except sqlite3.IntegrityError:
-        raise conflict("Building number %d already exists" % body.no, "exists")
+        raise conflict("Building number %d already exists" % body.no, "building_exists", no=body.no)
     db.audit(p.actor, "building.create", True, request=body.model_dump())
     return {"no": body.no, "name": body.name, "rooms": 0}
 
@@ -119,7 +119,8 @@ async def create_room(body: RoomIn, request: Request, p: Principal = Depends(req
              body.hour_start_price, body.hour_price, body.max_cards, int(body.public_door), body.note))
     except sqlite3.IntegrityError:
         raise conflict("Room %s, or lock %d-%d, already exists in building %d"
-                       % (body.room_no, body.floor_no, body.lock_room, body.building_no), "exists")
+                       % (body.room_no, body.floor_no, body.lock_room, body.building_no), "room_exists",
+                       room_no=body.room_no, lock="%d-%d-%d" % (body.building_no, body.floor_no, body.lock_room))
     db.audit(p.actor, "room.create", True, request=body.model_dump())
     return _room_out(svc.room_or_404(db, rid))
 
@@ -150,7 +151,7 @@ async def create_rooms_batch(body: RoomBatchIn, request: Request, p: Principal =
 async def update_room(room_id: int, body: RoomUpdate, request: Request,
                       p: Principal = Depends(require("rooms_manage"))):
     db = request.app.state.db
-    svc.room_or_404(db, room_id)
+    room = svc.room_or_404(db, room_id)
     fields = body.model_dump(exclude_unset=True)
     if "public_door" in fields:
         fields["public_door"] = int(fields["public_door"])
@@ -159,7 +160,10 @@ async def update_room(room_id: int, body: RoomUpdate, request: Request,
             db.execute("UPDATE rooms SET %s WHERE id=?" % ",".join("%s=?" % k for k in fields),
                        tuple(fields.values()) + (room_id,))
         except sqlite3.IntegrityError:
-            raise conflict("Another room already uses that room number or lock number", "exists")
+            merged = {**room, **fields}
+            raise conflict("Another room already uses that room number or lock number", "room_exists",
+                           room_no=merged["room_no"],
+                           lock="%d-%d-%d" % (merged["building_no"], merged["floor_no"], merged["lock_room"]))
     db.audit(p.actor, "room.update", True, request={"id": room_id, **fields})
     return _room_out(svc.room_or_404(db, room_id))
 

@@ -127,13 +127,16 @@ def active_stay(db, room_id):
 
 
 def overlapping(db, room_id, check_in, check_out, exclude_stay_id=None):
-    """Active or reserved stays of a room that overlap [check_in, check_out)."""
+    """Active or reserved stays of a room that overlap [check_in, check_out).
+
+    An overdue guest (active, check-out already passed) still occupies the room until they are
+    checked out, so their stay is treated as open-ended.
+    """
     now = fmt(local_now())
-    rows = db.query(
+    return db.query(
         "SELECT * FROM stays WHERE room_id=? AND status IN ('active','reserved') AND id != ? "
-        "AND check_in < ? AND (CASE WHEN status='active' AND check_out < ? THEN ? ELSE check_out END) > ?",
-        (room_id, exclude_stay_id or -1, fmt(check_out), now, now, fmt(check_in)))
-    return rows
+        "AND check_in < ? AND (check_out > ? OR (status='active' AND check_out <= ?))",
+        (room_id, exclude_stay_id or -1, fmt(check_out), fmt(check_in), now))
 
 
 def ensure_room_free(db, room, check_in, check_out, exclude_stay_id=None, allow_reserved=False):
@@ -260,6 +263,23 @@ def insert_card(t, kind, card_data, principal, encoder_id, status="active", **fi
     keys = list(cols)
     return t.insert("INSERT INTO cards (%s) VALUES (%s)" % (",".join(keys), ",".join("?" * len(keys))),
                     tuple(cols[k] for k in keys))
+
+
+def next_card_index(db, kind):
+    """Sequence number for a new staff card of this kind. Only ever goes up (survives report cleanup).
+
+    A database from before counters existed starts after the cards it already holds.
+    """
+    name = "card_index." + kind
+    with db.tx() as t:
+        row = t.one("SELECT value FROM counters WHERE name=?", (name,))
+        if row is None:
+            index = t.one("SELECT COUNT(*) AS n FROM cards WHERE kind=?", (kind,))["n"]
+            t.execute("INSERT INTO counters (name, value) VALUES (?,?)", (name, index + 1))
+        else:
+            index = row["value"]
+            t.execute("UPDATE counters SET value = value + 1 WHERE name=?", (name,))
+    return index
 
 
 def mark_room_after_checkout(t, db, room_id):

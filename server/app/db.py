@@ -146,6 +146,10 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 CREATE INDEX IF NOT EXISTS cards_data ON cards(card_data);
 CREATE INDEX IF NOT EXISTS cards_stay ON cards(stay_id);
+CREATE TABLE IF NOT EXISTS counters (
+    name  TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS open_records (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     room_label  TEXT,

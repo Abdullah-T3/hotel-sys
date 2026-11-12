@@ -10,6 +10,10 @@ const stack: symbol[] = [];
 
 function useLockedFocus(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
+  // Callers pass a new onClose on every render; keep the latest in a ref so the setup below runs
+  // only when the dialog opens - not on every board refresh (which used to steal focus mid-typing).
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const id = Symbol("dialog");
@@ -25,7 +29,7 @@ function useLockedFocus(open: boolean, onClose: () => void) {
       if (stack[stack.length - 1] !== id) return;
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        closeRef.current();
       }
       if (e.key === "Tab") {
         const f = focusables();
@@ -48,7 +52,7 @@ function useLockedFocus(open: boolean, onClose: () => void) {
       if (!stack.length) document.body.style.overflow = "";
       prev?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
   return ref;
 }
 
@@ -128,8 +132,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       <Dialog open={!!state} onClose={() => close(false)} title={state?.title} size="sm"
         footer={<>
-          <Button onClick={() => close(false)}>{t("common.cancel")}</Button>
-          <Button variant={state?.danger ? "danger" : "primary"} onClick={() => close(true)} data-autofocus>
+          <Button onClick={() => close(false)} data-autofocus={state?.danger ? "" : undefined}>{t("common.cancel")}</Button>
+          <Button variant={state?.danger ? "danger" : "primary"} onClick={() => close(true)}
+            data-autofocus={state?.danger ? undefined : ""}>
             {state?.confirmLabel ?? t("common.confirm")}
           </Button>
         </>}>

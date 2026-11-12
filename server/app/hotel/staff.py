@@ -47,7 +47,7 @@ async def issue_staff_card(body: StaffCardIn, request: Request, p: Principal = D
             raise conflict("That card is already %s" % svc.CARD_STATUSES[target["status"]].lower(), "already_done")
     if body.kind == "building" and not db.one("SELECT no FROM buildings WHERE no=?", (body.building_no,)):
         raise not_found("Building", body.building_no)
-    index = db.one("SELECT COUNT(*) AS n FROM cards WHERE kind=?", (body.kind,))["n"]
+    index = svc.next_card_index(db, body.kind)
     settings = svc.get_settings(db)
     params = {
         "holder": body.holder, "valid_from": valid_from, "valid_to": valid_to,

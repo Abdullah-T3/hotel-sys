@@ -40,6 +40,7 @@ export default function Encoders() {
   const [secret, setSecret] = useState<{ id: string; name: string; token: string } | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["encoders"] });
 
+  const openRegister = () => { setForm({ id: "", name: "" }); create.reset(); setAdding(true); };
   const create = useMutation({
     mutationFn: () => api.post<Encoder & { token: string }>("/v1/encoders", form),
     onSuccess: (e) => { setAdding(false); setSecret({ id: e.id, name: e.name, token: e.token }); setForm({ id: "", name: "" }); refresh(); },
@@ -51,7 +52,7 @@ export default function Encoders() {
   return (
     <Card>
       <CardHeader title={t("encoders.title")} description={t("encoders.intro")}
-        actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>{t("encoders.register")}</Button>} />
+        actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={openRegister}>{t("encoders.register")}</Button>} />
       {!encoders.length ? (
         <Empty icon={<Usb className="size-6" />} title={t("encoders.none")} description={t("encoders.noneText")} />
       ) : (

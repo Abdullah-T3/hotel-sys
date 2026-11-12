@@ -9,7 +9,7 @@ from fastapi.responses import Response
 
 from ..cardops import run_template
 from ..db import local_now
-from ..errors import decode_out
+from ..errors import GatewayError, decode_out
 from ..security import Principal, require
 from . import service as svc
 from .models import EncoderRef
@@ -26,6 +26,11 @@ def _csv(rows, columns, filename):
         w.writerow(["" if r.get(k) is None else r.get(k) for k, _ in columns])
     return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="%s"' % filename})
+
+
+def _require_export(p: Principal):
+    if not p.can("reports_manage"):
+        raise GatewayError(403, "forbidden", "Exporting reports requires the manager role")
 
 
 def _range(sql, params, column, date_from, date_to):
@@ -59,12 +64,23 @@ async def card_report(request: Request, kind: Optional[str] = None, status: Opti
         sql += " AND (c.holder LIKE ? OR r.room_no LIKE ? OR c.card_data LIKE ? OR c.issued_by LIKE ?)"
         params += ["%" + q + "%"] * 4
     sql = _range(sql, params, "c.issued_at", date_from, date_to)
+    if status:
+        # Filter in SQL before LIMIT. "expired" / "active" are computed from valid_to (see card_view).
+        now = svc.fmt(local_now())
+        if status == "expired":
+            sql += " AND c.status='active' AND c.valid_to IS NOT NULL AND c.valid_to < ?"
+            params.append(now)
+        elif status == "active":
+            sql += " AND c.status='active' AND (c.valid_to IS NULL OR c.valid_to >= ?)"
+            params.append(now)
+        else:
+            sql += " AND c.status=?"
+            params.append(status)
     sql += " ORDER BY c.id DESC LIMIT ?"
     params.append(limit)
     rows = [svc.card_view(r) for r in request.app.state.db.query(sql, tuple(params))]
-    if status:
-        rows = [r for r in rows if r["status"] == status]
     if format == "csv":
+        _require_export(p)
         return _csv(rows, CARD_COLUMNS, "card-records.csv")
     return rows
 
@@ -74,8 +90,10 @@ async def cleanup_cards(request: Request, p: Principal = Depends(require("report
     """Delete card records that can no longer open anything (expired, erased, checked out, replaced, lost)."""
     db = request.app.state.db
     now = svc.fmt(local_now())
+    # Expired cards of guests who are still in the house (overdue) are kept: check-out with card needs them.
     n = db.execute("DELETE FROM cards WHERE status IN ('erased','checked_out','replaced','lost') "
-                   "OR (valid_to IS NOT NULL AND valid_to < ?)", (now,)).rowcount
+                   "OR (valid_to IS NOT NULL AND valid_to < ? AND (stay_id IS NULL OR stay_id NOT IN "
+                   "(SELECT id FROM stays WHERE status IN ('active','reserved'))))", (now,)).rowcount
     db.audit(p.actor, "reports.cleanup_cards", True, detail="%d deleted" % n)
     return {"deleted": n}
 
@@ -112,6 +130,7 @@ async def guest_report(request: Request, status: Optional[str] = None, q: Option
     for r in rows:
         r["vip"] = bool(r["vip"])
     if format == "csv":
+        _require_export(p)
         return _csv(rows, GUEST_COLUMNS, "guest-records.csv")
     return rows
 
@@ -183,6 +202,7 @@ async def open_record_report(request: Request, q: Optional[str] = None, date_fro
     params.append(limit)
     rows = request.app.state.db.query(sql, tuple(params))
     if format == "csv":
+        _require_export(p)
         return _csv(rows, OPEN_COLUMNS, "door-open-records.csv")
     return rows
 

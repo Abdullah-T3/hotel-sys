@@ -154,6 +154,11 @@ async def get_settings(request: Request, p: Principal = Depends(authenticate)):
 async def put_settings(body: SettingsIn, request: Request, p: Principal = Depends(require("settings"))):
     db = request.app.state.db
     values = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if "lock_options" in values:
+        # Merge: only the options sent in this request change; the others keep their stored values.
+        merged = svc.get_settings(db)["lock_options"]
+        merged.update(values["lock_options"])
+        values["lock_options"] = merged
     db.set_settings(values)
     db.audit(p.actor, "settings.update", True, request=values)
     return svc.get_settings(db)
@@ -215,7 +220,8 @@ async def update_operator(op_id: int, body: OperatorUpdate, request: Request,
     if fields:
         db.execute("UPDATE operators SET %s WHERE id=?" % ",".join("%s=?" % k for k in fields),
                    tuple(fields.values()) + (op_id,))
-    if body.active is False or body.password or body.role:
+    # End their sessions only when access actually changed - not for a name or note edit.
+    if body.active is False or body.password or (body.role and body.role != op["role"]):
         db.execute("DELETE FROM sessions WHERE operator_id=?", (op_id,))
     db.audit(p.actor, "operator.update", True, request={"id": op_id, **body.model_dump(exclude={"password"},
                                                                                      exclude_unset=True)})

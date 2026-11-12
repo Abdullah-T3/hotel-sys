@@ -1,14 +1,21 @@
+import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Check, Languages } from "lucide-react";
 import { isLang, LANGUAGES, useI18n, type Lang } from "../i18n";
-import { api, tokenStore } from "../lib/api";
+import { api, tokenStore, type Meta } from "../lib/api";
 import { Select } from "./ui";
 
 /** Change the UI language; when signed in, remember it on the operator's account too. */
 export function useChangeLanguage() {
   const { setLang } = useI18n();
+  const qc = useQueryClient();
   return (l: Lang) => {
-    if (tokenStore.get()) api.put("/v1/auth/preferences", { language: l }).catch(() => {});
+    if (tokenStore.get()) {
+      api.put("/v1/auth/preferences", { language: l }).catch(() => {});
+      // Keep the cached account info in step, so nothing switches the language back.
+      qc.setQueryData<Meta>(["meta"], (m) => (m?.me.operator
+        ? { ...m, me: { ...m.me, operator: { ...m.me.operator, language: l } } } : m));
+    }
     setLang(l);
   };
 }

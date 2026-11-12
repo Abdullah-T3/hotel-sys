@@ -29,7 +29,7 @@ export function CardInfoDialog({ open, onClose }: { open: boolean; onClose: () =
     mutationFn: () => api.post<Stay>("/v1/cards/checkout", { encoder_id: encoderId, erase: true }),
     onSuccess: (stay) => {
       toast.success(t("cardInfo.checkedOut", { room: stay.room.room_no }));
-      qc.invalidateQueries({ queryKey: ["board"] });
+      ["board", "stay", "parties", "report"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       read.mutate();
     },
     onError: (e) => toast.error(errorText(e)),
@@ -39,7 +39,7 @@ export function CardInfoDialog({ open, onClose }: { open: boolean; onClose: () =
     onSuccess: (r) => {
       toast.success(t("cardInfo.erased"));
       setInfo({ ...r, blank: true });
-      qc.invalidateQueries({ queryKey: ["board"] });
+      ["board", "stay", "parties", "report"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     },
     onError: (e) => toast.error(errorText(e)),
   });

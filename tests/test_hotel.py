@@ -266,7 +266,8 @@ def test_reception_flows(hotel):
     # --- reports
     cards = ok(desk.get("/v1/reports/cards"))
     assert {c["kind"] for c in cards} == {"guest"} and len(cards) >= 8
-    csv = desk.get("/v1/reports/cards", params={"format": "csv"})
+    assert desk.get("/v1/reports/cards", params={"format": "csv"}).status_code == 403   # export = managers
+    csv = boss.get("/v1/reports/cards", params={"format": "csv"})
     assert csv.status_code == 200 and csv.text.startswith("﻿ID,Type,Room")
     guests = ok(desk.get("/v1/reports/guests", params={"q": "Hassan"}))
     assert {g["name"] for g in guests} == {"Ali Hassan", "Mona Hassan"}

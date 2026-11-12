@@ -19,11 +19,16 @@ function OperatorDialog({ op, open, onClose }: { op: Operator | null; open: bool
   const myRole = meta!.me.role;
   const [form, setForm] = useState({ username: "", name: "", role: "operator" as Role, password: "", note: "", active: true });
   useEffect(() => {
-    if (open) setForm({ username: op?.username ?? "", name: op?.name ?? "", role: op?.role ?? "operator", password: "", note: op?.note ?? "", active: op?.active ?? true });
-  }, [open, op]);
+    if (open) {
+      setForm({ username: op?.username ?? "", name: op?.name ?? "", role: op?.role ?? "operator", password: "", note: op?.note ?? "", active: op?.active ?? true });
+      save.reset();
+    }
+  }, [open, op]);  // eslint-disable-line react-hooks/exhaustive-deps
   const save = useMutation({
     mutationFn: () => op
-      ? api.patch(`/v1/operators/${op.id}`, { name: form.name, role: form.role, note: form.note || null, active: form.active, password: form.password || undefined })
+      ? api.patch(`/v1/operators/${op.id}`, { name: form.name, note: form.note || null, active: form.active,
+          // Only send what changed: a role change (or new password) ends the operator's sessions.
+          role: form.role !== op.role ? form.role : undefined, password: form.password || undefined })
       : api.post("/v1/operators", { username: form.username, name: form.name, role: form.role, password: form.password, note: form.note || null }),
     onSuccess: () => { toast.success(op ? t("operators.saved") : t("operators.added")); qc.invalidateQueries({ queryKey: ["operators"] }); onClose(); },
   });

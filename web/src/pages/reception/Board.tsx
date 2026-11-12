@@ -20,6 +20,7 @@ function RoomTile({ room, onOpen }: { room: BoardRoom; onOpen: () => void }) {
   const r = room.reservation;
   return (
     <button type="button" onClick={onOpen} title={t(`status.${room.status}`)}
+      aria-label={`${t("drawer.room", { room: room.room_no })}, ${room.building_name}, ${t(`status.${room.status}`)}${s?.guest_name ? `, ${s.guest_name}` : ""}`}
       className={clsx("group relative flex h-[104px] flex-col overflow-hidden rounded-xl border border-line bg-surface text-start shadow-xs",
         "transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         room.status === "TO" && "overdue-pulse border-st-to/60")}>

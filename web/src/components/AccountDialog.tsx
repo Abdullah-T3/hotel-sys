@@ -1,5 +1,5 @@
 import { KeyRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
@@ -14,6 +14,9 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mismatch = confirm.length > 0 && next !== confirm;
+  useEffect(() => {
+    if (open) { setCurrent(""); setNext(""); setConfirm(""); setError(null); }
+  }, [open]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
