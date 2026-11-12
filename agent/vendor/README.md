@@ -1,4 +1,5 @@
-Put the vendor DLLs here (copied from the D801 install folder):
+Put the vendor DLLs here. proRFL.dll comes only from the 2019 installer
+(【M1中性】D801智能门锁管理系统.exe); the others are also in your CardLock folder:
 
 - proRFL.dll
 - Mwic_32.dll

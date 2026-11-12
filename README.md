@@ -63,6 +63,8 @@ order for each card type still has to be confirmed on a real encoder and lock**.
 Until an administrator confirms a card type (Settings → Calibration), the
 system **refuses to write it** rather than guess. Reading cards works now.
 → [docs/CALIBRATION.md](docs/CALIBRATION.md) (about an hour with one encoder and one test lock).
+First time with real hardware? Start with [docs/HARDWARE_TEST.md](docs/HARDWARE_TEST.md):
+a read-only encoder self-test (`py -3-32 agent\selftest.py`), then server + agent, then calibration.
 
 ## Deploying
 
