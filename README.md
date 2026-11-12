@@ -51,7 +51,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
 Open <http://localhost:8080> and sign in as **admin / admin1234**
 (also `frontdesk` and `manager`, same password). The demo starts a sample hotel
-and a **mock encoder**, so every flow works end to end.
+and **two mock encoders** ("Front Desk 1" and "Front Desk 2", like two front-desk
+PCs), so every flow works end to end — pick a desk's encoder in the top bar.
+Use `--encoders N` for more desks and `--keep` to keep the data between runs.
 
 ## Status — read this before using real locks
 

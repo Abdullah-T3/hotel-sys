@@ -9,6 +9,7 @@ Card templates are allowed uncalibrated here (mock encoder only). Never use this
 """
 import argparse
 import asyncio
+import json
 import os
 import sys
 import threading
@@ -33,19 +34,21 @@ def at(dt):
     return dt.replace(second=0, microsecond=0).isoformat(timespec="minutes")
 
 
-def seed(base):
+def seed(base, encoders):
+    """Sign in (creating the hotel on first run) and register any missing encoders. Returns (client, new tokens)."""
     c = httpx.Client(base_url=base, timeout=15)
     if c.get("/v1/setup").json()["needs_setup"]:
-        token = c.post("/v1/setup", json={"hotel_name": "Smart Zoom Hotel", "username": USER, "name": "Demo Admin",
-                                          "password": PASSWORD}).json()["token"]
+        session = c.post("/v1/setup", json={"hotel_name": "Smart Zoom Hotel", "username": USER, "name": "Demo Admin",
+                                            "password": PASSWORD}).json()["token"]
     else:
-        token = c.post("/v1/auth/login", json={"username": USER, "password": PASSWORD}).json()["token"]
-    c.headers["Authorization"] = "Bearer " + token
-    token = None
-    if c.get("/v1/encoders/front-desk-1").status_code == 404:
-        token = c.post("/v1/encoders", json={"id": "front-desk-1", "name": "Front Desk 1"}).json()["token"]
+        session = c.post("/v1/auth/login", json={"username": USER, "password": PASSWORD}).json()["token"]
+    c.headers["Authorization"] = "Bearer " + session
+    tokens = {}
+    for eid, name in encoders:
+        if c.get("/v1/encoders/" + eid).status_code == 404:
+            tokens[eid] = c.post("/v1/encoders", json={"id": eid, "name": name}).json()["token"]
     if c.get("/v1/buildings").json():
-        return c, token  # already seeded
+        return c, tokens  # already seeded
     c.put("/v1/settings", json={"currency": "EGP"})
     c.post("/v1/buildings", json={"no": 1, "name": "Main building"})
     c.post("/v1/buildings", json={"no": 2, "name": "Garden wing"})
@@ -55,7 +58,7 @@ def seed(base):
                                     "price": 2500, "max_cards": 4})
     for name, role in (("frontdesk", "operator"), ("manager", "manager")):
         c.post("/v1/operators", json={"username": name, "name": name.title(), "role": role, "password": PASSWORD})
-    return c, token
+    return c, tokens
 
 
 def populate(c):
@@ -92,7 +95,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--keep", action="store_true", help="keep the existing demo.db")
+    ap.add_argument("--encoders", type=int, default=2, choices=range(1, 10), metavar="N",
+                    help="number of mock encoders, like N front-desk PCs (default 2)")
     a = ap.parse_args()
+    encoders = [("front-desk-%d" % i, "Front Desk %d" % i) for i in range(1, a.encoders + 1)]
     db = os.path.join(ROOT, "demo.db")
     fresh = not (a.keep and os.path.exists(db))
     if fresh:
@@ -105,24 +111,34 @@ def main():
     while not server.started:
         time.sleep(0.05)
     base = "http://127.0.0.1:%d" % a.port
-    client, token = seed(base)
-    if token:
-        with open(os.path.join(ROOT, ".demo-agent-token"), "w") as f:
-            f.write(token)
-    token = token or open(os.path.join(ROOT, ".demo-agent-token")).read().strip()
+    client, new_tokens = seed(base, encoders)
+    token_file = os.path.join(ROOT, ".demo-agent-token")
+    tokens = {}
+    if not fresh and os.path.exists(token_file):
+        raw = open(token_file).read().strip()
+        try:
+            tokens = json.loads(raw)
+        except ValueError:  # older demo runs stored a single token
+            tokens = {"front-desk-1": raw}
+    tokens.update(new_tokens)
+    with open(token_file, "w") as f:
+        json.dump(tokens, f)
 
-    agent = Agent("ws://127.0.0.1:%d/agent/ws" % a.port, "front-desk-1", token, MockExecutor(port=1), name="Front Desk 1")
-    loop = asyncio.new_event_loop()
-    threading.Thread(target=lambda: loop.run_until_complete(agent.run_forever()), daemon=True).start()
-    for _ in range(100):
-        if client.get("/v1/encoders/front-desk-1").json().get("online"):
+    # One agent + one in-memory card reader per encoder, exactly like separate front-desk PCs.
+    for eid, name in encoders:
+        agent = Agent("ws://127.0.0.1:%d/agent/ws" % a.port, eid, tokens[eid], MockExecutor(port=1), name=name)
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=lambda ag=agent, lp=loop: lp.run_until_complete(ag.run_forever()), daemon=True).start()
+    for _ in range(200):
+        if all(e["online"] for e in client.get("/v1/encoders").json() if e["id"] in tokens):
             break
         time.sleep(0.05)
     if fresh:
         populate(client)
 
     print("\n  D801 Lock Manager demo  →  %s\n  Sign in: %s / %s   (also: frontdesk, manager — same password)\n"
-          "  Mock encoder 'Front Desk 1' is online. Ctrl+C to stop.\n" % (base, USER, PASSWORD), flush=True)
+          "  Mock encoders online: %s. Pick one in the top bar. Ctrl+C to stop.\n"
+          % (base, USER, PASSWORD, ", ".join(n for _, n in encoders)), flush=True)
     try:
         while True:
             time.sleep(3600)
